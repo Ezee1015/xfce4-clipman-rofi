@@ -3,63 +3,57 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool print_line(FILE *f) {
-  char c;
-  int move = 1;
-  bool escaped = false;
+#define BLOCK_SIZE 256
 
-  while ( (c = fgetc(f)) != ';' || escaped) {
-    if (c == EOF) {
-      fprintf(stderr, "File format error! EOF reached\n");
-      return true;
-    }
+typedef struct {
+  char *t;
+  size_t length;
+  size_t size;
+} String;
 
-    switch (c) {
-      case '\\':
-        if (escaped) printf("\\\\");
-        escaped = !escaped;
-        break;
+struct Clipboard {
+  String info;
+  struct Clipboard *next;
+};
+typedef struct Clipboard Clipboard;
 
-      case 's':
-        putchar( (escaped) ? ' ' : c );
-        escaped = false;
-        break;
+bool append_str(Clipboard *cb, char *s) {
+  if (!cb || !s) return false;
 
-      case 't':
-        putchar( (escaped) ? '\t' : c );
-        escaped = false;
-        break;
+  size_t new_length = cb->info.length+strlen(s);
 
-      case ';':
-        putchar(';');
-        escaped = false;
-        break;
-
-      case 'n':
-        // Don't replace '\n' with a new line because rofi uses new line as a
-        // separator. That's why I use `send_to_clipboard.c`. So '\n' should stay
-        // as it is
-        if (escaped) putchar('\\');
-        putchar('n');
-        escaped = false;
-        break;
-
-      default:
-        if (escaped) {
-          fprintf(stderr, "Error parsing the clipboard!. Unknown escape sequence: \\%c\n", c);
-          return false;
-        }
-        putchar(c);
-        escaped = false;
-        break;
-    }
-
-    move++;
+  if (new_length+1 > cb->info.size) {
+    cb->info.size = BLOCK_SIZE * (new_length/BLOCK_SIZE+1);
+    if ( !(cb->info.t = realloc(cb->info.t, cb->info.size)) )
+      return false;
   }
-  putchar('\n');
-  fseek(f, -1 * move, SEEK_CUR);
+
+  if (!cb->info.length) strcpy(cb->info.t, s);
+  else strcat(cb->info.t, s);
+  cb->info.length = new_length;
 
   return true;
+}
+
+bool append_char(Clipboard *cb, char c) {
+  char s[2] = {c, '\0'};
+
+  return append_str(cb, s);
+}
+
+void free_text(String *text) {
+  free(text->t);
+  text->size = 0;
+  text->length = 0;
+}
+
+void free_clipboard(Clipboard **cb) {
+  while (*cb) {
+    Clipboard *aux = *cb;
+    *cb = aux->next;
+    free_text(&(aux->info));
+    free(aux);
+  }
 }
 
 int main(void) {
@@ -80,41 +74,111 @@ int main(void) {
     free(path);
     return 1;
   }
-
-  // '-4': skip: last semicolon and 2 break line (one from xfce, other for
-  //       POSIX) and position the cursor in the last char of the sentence. See also:
-  //       https://stackoverflow.com/questions/729692/why-should-text-files-end-with-a-newline
-  // '14': skip: "[texts]\ntexts="
-  int pos;
-  if ( fseek(f, -4, SEEK_END) || (pos = ftell(f)) < 14 ) {
-    fprintf(stderr, "File format error! File: %s\n", path);
-    free(path);
-    return 1;
-  }
   free(path);
 
+  fseek(f, 14, SEEK_SET); // skip: "[texts]\ntexts="
+  Clipboard *cb = NULL;
+  bool escaped = false, new_element = true;
   char c;
-  while (pos > 14) {
-    if ( (c = fgetc(f)) == ';' ) {
-      int x = 1;
-      bool escaped = false;
-      while ( !fseek(f, -2, SEEK_CUR) && (c = fgetc(f)) == '\\' ) {
-        escaped = !escaped;
-        x++;
-      }
-      fseek(f, x, SEEK_CUR);
 
-      if (!escaped && !print_line(f)) {
-        fclose(f);
-        return 1;
-      }
+  while ( (c = fgetc(f)) != '\n' && c != EOF) {
+    if (new_element) {
+      Clipboard *aux = cb;
+      cb = malloc(sizeof(Clipboard));
+      cb->next = aux;
+      cb->info.t = malloc(BLOCK_SIZE);
+      cb->info.size = BLOCK_SIZE;
+      cb->info.length = 0;
+
+      new_element = false;
     }
 
-    fseek(f, -2, SEEK_CUR);
-    pos--;
-  }
-  print_line(f);
+    switch (c) {
+      case '\\':
+        if (escaped && !append_str(cb, "\\\\")) {
+          fprintf(stderr, "Error while appending string\n");
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        escaped = !escaped;
+        break;
 
+      case ';':
+        if (!escaped) {
+          new_element = true;
+          escaped = false;
+          break;
+        }
+
+        if (!append_char(cb, ';')) {
+          fprintf(stderr, "Error while appending char\n");
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        escaped = false;
+        break;
+
+      case 's':
+        if (!append_char(cb, (escaped) ? ' ' : 's')) {
+          fprintf(stderr, "Error while appending char\n");
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        escaped = false;
+        break;
+
+      case 't':
+        if (!append_char(cb, (escaped) ? '\t' : 't')) {
+          fprintf(stderr, "Error while appending char\n");
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        escaped = false;
+        break;
+
+      case 'n':
+        // Don't replace '\n' with a new line because rofi uses new line as a
+        // separator. That's why I use `send_to_clipboard.c`. So '\n' should stay
+        // as it is
+        if (!append_str(cb, (escaped) ? "\\n" : "n")) {
+          fprintf(stderr, "Error while appending string or char\n");
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        escaped = false;
+        break;
+
+      default:
+        if (escaped) {
+          fprintf(stderr, "Error parsing the clipboard!. Unknown escape sequence: \\%c\n", c);
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        if (!append_char(cb, c)) {
+          fprintf(stderr, "Error while appending char\n");
+          free_clipboard(&cb);
+          fclose(f);
+          return 1;
+        }
+        escaped = false;
+        break;
+    }
+  }
+
+
+  Clipboard *aux = cb;
+  while (aux) {
+    printf("%s\n", aux->info.t);
+    aux = aux->next;
+  }
+
+  free_clipboard(&cb);
   fclose(f);
   return 0;
 }
