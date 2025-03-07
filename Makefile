@@ -1,11 +1,9 @@
-compile: read_clipman.c send_to_clipboard.c
-	gcc read_clipman.c -o read_clipman -g
-	gcc send_to_clipboard.c -o send_to_clipboard -g
+compile: xfce4-clipman-rofi.c
+	gcc xfce4-clipman-rofi.c -o xfce4-clipman-rofi -g
 
-install: read_clipman send_to_clipboard
+install: xfce4-clipman-rofi
 	mkdir -p ~/.local/share/rofi
-	mv read_clipman ~/.local/share/rofi/
-	mv send_to_clipboard ~/.local/share/rofi/
+	mv xfce4-clipman-rofi ~/.local/share/rofi/
 
 clean:
-	rm read_clipman send_to_clipboard
+	rm xfce4-clipman-rofi

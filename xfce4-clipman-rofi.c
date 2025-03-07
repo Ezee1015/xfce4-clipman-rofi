@@ -4,6 +4,9 @@
 #include <string.h>
 
 #define BLOCK_SIZE 256
+#define TEMP_PATH "/tmp/xfce4-clipman-rofi.temp"
+#define MENU_CMD "rofi -dmenu"
+#define CLIPBOARD_MANAGER "xclip -i -sel clip"
 
 typedef struct {
   char *t;
@@ -41,7 +44,7 @@ bool append_char(Clipboard *cb, char c) {
   return append_str(cb, s);
 }
 
-void free_text(String *text) {
+void free_string(String *text) {
   free(text->t);
   text->size = 0;
   text->length = 0;
@@ -51,18 +54,20 @@ void free_clipboard(Clipboard **cb) {
   while (*cb) {
     Clipboard *aux = *cb;
     *cb = aux->next;
-    free_text(&(aux->info));
+    free_string(&(aux->info));
     free(aux);
   }
 }
 
-int main(void) {
+bool load_clipboard(Clipboard **cb) {
+  if (!cb) return false;
+
   const char *home = getenv("HOME");
   if (!home) {
     fprintf(stderr, "Unable to get the HOME path\n");
-    return 1;
+    return false;
   }
-  const char *file = "/.cache/xfce4/clipman/textsrc"; // From home
+  const char *file = "/.cache/xfce4/clipman/textsrc"; // Path from home
 
   char *path = malloc(strlen(home) + strlen(file) + 1);
   strcpy(path, home);
@@ -72,34 +77,32 @@ int main(void) {
   if (!f) {
     fprintf(stderr, "Unable to open '%s'\n", path);
     free(path);
-    return 1;
+    return false;
   }
   free(path);
 
   fseek(f, 14, SEEK_SET); // skip: "[texts]\ntexts="
-  Clipboard *cb = NULL;
   bool escaped = false, new_element = true;
   char c;
 
   while ( (c = fgetc(f)) != '\n' && c != EOF) {
     if (new_element) {
-      Clipboard *aux = cb;
-      cb = malloc(sizeof(Clipboard));
-      cb->next = aux;
-      cb->info.t = malloc(BLOCK_SIZE);
-      cb->info.size = BLOCK_SIZE;
-      cb->info.length = 0;
+      Clipboard *aux = *cb;
+      *cb = malloc(sizeof(Clipboard));
+      (*cb)->next = aux;
+      (*cb)->info.t = malloc(BLOCK_SIZE);
+      (*cb)->info.size = BLOCK_SIZE;
+      (*cb)->info.length = 0;
 
       new_element = false;
     }
 
     switch (c) {
       case '\\':
-        if (escaped && !append_str(cb, "\\\\")) {
+        if (escaped && !append_str(*cb, "\\\\")) {
           fprintf(stderr, "Error while appending string\n");
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
         escaped = !escaped;
         break;
@@ -111,44 +114,39 @@ int main(void) {
           break;
         }
 
-        if (!append_char(cb, ';')) {
+        if (!append_char(*cb, ';')) {
           fprintf(stderr, "Error while appending char\n");
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
         escaped = false;
         break;
 
       case 's':
-        if (!append_char(cb, (escaped) ? ' ' : 's')) {
+        if (!append_char(*cb, (escaped) ? ' ' : 's')) {
           fprintf(stderr, "Error while appending char\n");
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
         escaped = false;
         break;
 
       case 't':
-        if (!append_char(cb, (escaped) ? '\t' : 't')) {
+        if (!append_char(*cb, (escaped) ? '\t' : 't')) {
           fprintf(stderr, "Error while appending char\n");
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
         escaped = false;
         break;
 
       case 'n':
         // Don't replace '\n' with a new line because rofi uses new line as a
-        // separator. That's why I use `send_to_clipboard.c`. So '\n' should stay
-        // as it is
-        if (!append_str(cb, (escaped) ? "\\n" : "n")) {
+        // separator.
+        if (!append_str(*cb, (escaped) ? "\\n" : "n")) {
           fprintf(stderr, "Error while appending string or char\n");
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
         escaped = false;
         break;
@@ -156,29 +154,108 @@ int main(void) {
       default:
         if (escaped) {
           fprintf(stderr, "Error parsing the clipboard!. Unknown escape sequence: \\%c\n", c);
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
-        if (!append_char(cb, c)) {
+        if (!append_char(*cb, c)) {
           fprintf(stderr, "Error while appending char\n");
-          free_clipboard(&cb);
           fclose(f);
-          return 1;
+          return false;
         }
         escaped = false;
         break;
     }
   }
 
+  fclose(f);
+  return true;
+}
 
-  Clipboard *aux = cb;
-  while (aux) {
-    printf("%s\n", aux->info.t);
-    aux = aux->next;
+bool send_to_menu(Clipboard *cb) {
+  FILE *menu = popen(MENU_CMD " > " TEMP_PATH, "w");
+
+  if (!menu) {
+    fprintf(stderr, "popen() failed!\n");
+    return false;
+  }
+
+  while (cb) {
+    fprintf(menu, "%s\n", cb->info.t);
+    cb = cb->next;
+  }
+
+  return (WEXITSTATUS(pclose(menu)) == 0);
+}
+
+bool send_to_clipboard(void) {
+  FILE *clip = popen(CLIPBOARD_MANAGER, "w");
+
+  if (!clip) {
+    fprintf(stderr, "popen() failed!\n");
+    remove(TEMP_PATH);
+    return false;
+  }
+
+  FILE *output = fopen(TEMP_PATH, "r");
+  if (!output) {
+    remove(TEMP_PATH);
+    return false;
+  }
+
+  bool escaped = false;
+  char c;
+  // Escape new line at the end of the file:
+  // https://stackoverflow.com/questions/729692/why-should-text-files-end-with-a-newline
+  while ( (c = fgetc(output)) != '\n' && c != EOF ) {
+    switch (c) {
+      case '\\':
+        if (escaped) fputc('\\', clip);
+        escaped = !escaped;
+        break;
+
+      case 'n':
+        if (escaped) fputc('\n', clip);
+        else fputc('n', clip);
+        escaped = false;
+        break;
+
+      default:
+        if (escaped) {
+          fprintf(stderr, "Error parsing the clipboard!. Unknown escape sequence: \\%c\n", c);
+          fclose(output);
+          remove(TEMP_PATH);
+          pclose(clip);
+          return false;
+        }
+        fputc(c, clip);
+        escaped = false;
+        break;
+    }
+  }
+
+  fclose(output);
+  remove(TEMP_PATH);
+  return (WEXITSTATUS(pclose(clip)) == 0);
+}
+
+int main(void) {
+  Clipboard *cb = NULL;
+
+  if (!load_clipboard(&cb)) {
+    free_clipboard(&cb);
+    return 1;
+  }
+
+  if (!send_to_menu(cb)) {
+    free_clipboard(&cb);
+    return 2;
+  }
+
+  if (!send_to_clipboard()) {
+    free_clipboard(&cb);
+    return 3;
   }
 
   free_clipboard(&cb);
-  fclose(f);
   return 0;
 }
