@@ -1,5 +1,6 @@
 # xfce4-clipman-rofi
-Open the xfce4-clipman clipboard history with rofi.
+
+Open the [xfce4-clipman](https://docs.xfce.org/panel-plugins/xfce4-clipman-plugin/start) clipboard history with [rofi](https://github.com/davatorium/rofi).
 
 ## Installation
 ```bash
@@ -9,7 +10,9 @@ make install
 
 ## Usage
 ```bash
-~/.local/share/rofi/read_clipman | rofi -dmenu | ~/.local/share/rofi/send_to_clipboard
+~/.local/share/rofi/xfce4-clipman-rofi
 ```
 
-> For i3 users: `bindsym $mod+c exec ~/.local/share/rofi/read_clipman | rofi -dmenu | ~/.local/share/rofi/send_to_clipboard`
+It will ask you with rofi which item you want to copy from the clipboard.
+
+> For i3 users: `bindsym $mod+c exec ~/.local/share/rofi/xfce4-clipman-rofi`
