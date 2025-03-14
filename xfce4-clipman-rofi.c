@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BLOCK_SIZE 256
+#define STR_BLOCK_SIZE 256
 #define TEMP_PATH "/tmp/xfce4-clipman-rofi.temp"
 #define MENU_CMD "rofi -dmenu"
-#define CLIPBOARD_MANAGER "xclip -i -sel clip"
+#define CLIPBOARD_MANAGER_CMD "xclip -i -sel clip"
 
 typedef struct {
   char *t;
@@ -26,7 +26,7 @@ bool append_str(Clipboard *cb, char *s) {
   size_t new_length = cb->info.length+strlen(s);
 
   if (new_length+1 > cb->info.size) {
-    cb->info.size = BLOCK_SIZE * (new_length/BLOCK_SIZE+1);
+    cb->info.size = STR_BLOCK_SIZE * (new_length/STR_BLOCK_SIZE+1);
     if ( !(cb->info.t = realloc(cb->info.t, cb->info.size)) )
       return false;
   }
@@ -90,8 +90,8 @@ bool load_clipboard(Clipboard **cb) {
       Clipboard *aux = *cb;
       *cb = malloc(sizeof(Clipboard));
       (*cb)->next = aux;
-      (*cb)->info.t = malloc(BLOCK_SIZE);
-      (*cb)->info.size = BLOCK_SIZE;
+      (*cb)->info.t = malloc(STR_BLOCK_SIZE);
+      (*cb)->info.size = STR_BLOCK_SIZE;
       (*cb)->info.length = 0;
 
       new_element = false;
@@ -188,7 +188,7 @@ bool send_to_menu(Clipboard *cb) {
 }
 
 bool send_to_clipboard(void) {
-  FILE *clip = popen(CLIPBOARD_MANAGER, "w");
+  FILE *clip = popen(CLIPBOARD_MANAGER_CMD, "w");
 
   if (!clip) {
     fprintf(stderr, "popen() failed!\n");
