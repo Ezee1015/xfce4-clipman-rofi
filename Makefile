@@ -1,9 +1,18 @@
-compile: xfce4-clipman-rofi.c
-	gcc xfce4-clipman-rofi.c -o xfce4-clipman-rofi -g
+CFILE := xfce4-clipman-rofi.c
+EXEC := xfce4-clipman-rofi
+# CFLAGS := -g
 
-install: xfce4-clipman-rofi
-	mkdir -p ~/.local/share/rofi
-	mv xfce4-clipman-rofi ~/.local/share/rofi/
+all: $(EXEC)
+
+$(EXEC): $(CFILE)
+	gcc $(CFLAGS) $(CFILE) -o $(EXEC)
 
 clean:
-	rm xfce4-clipman-rofi
+	rm $(EXEC)
+
+install: $(EXEC)
+	mkdir -p ~/.local/share/rofi
+	mv $(EXEC) ~/.local/share/rofi/
+
+uninstall:
+	rm ~/.local/share/rofi/$(EXEC)
