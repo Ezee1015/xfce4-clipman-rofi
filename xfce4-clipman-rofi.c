@@ -9,7 +9,7 @@
 #define CLIPBOARD_MANAGER_CMD "xclip -i -sel clip"
 
 typedef struct {
-  char *t;
+  char *str;
   size_t length;
   size_t size;
 } String;
@@ -27,12 +27,12 @@ bool append_str(Clipboard *cb, char *s) {
 
   if (new_length+1 > cb->info.size) {
     cb->info.size = STR_BLOCK_SIZE * (new_length/STR_BLOCK_SIZE+1);
-    if ( !(cb->info.t = realloc(cb->info.t, cb->info.size)) )
+    if ( !(cb->info.str = realloc(cb->info.str, cb->info.size)) )
       return false;
   }
 
-  if (!cb->info.length) strcpy(cb->info.t, s);
-  else strcat(cb->info.t, s);
+  if (!cb->info.length) strcpy(cb->info.str, s);
+  else strcat(cb->info.str, s);
   cb->info.length = new_length;
 
   return true;
@@ -45,7 +45,7 @@ bool append_char(Clipboard *cb, char c) {
 }
 
 void free_string(String *text) {
-  free(text->t);
+  free(text->str);
   text->size = 0;
   text->length = 0;
 }
@@ -90,7 +90,7 @@ bool load_clipboard(Clipboard **cb) {
       Clipboard *aux = *cb;
       *cb = malloc(sizeof(Clipboard));
       (*cb)->next = aux;
-      (*cb)->info.t = malloc(STR_BLOCK_SIZE);
+      (*cb)->info.str = malloc(STR_BLOCK_SIZE);
       (*cb)->info.size = STR_BLOCK_SIZE;
       (*cb)->info.length = 0;
 
@@ -180,7 +180,7 @@ bool send_to_menu(Clipboard *cb) {
   }
 
   while (cb) {
-    fprintf(menu, "%s\n", cb->info.t);
+    fprintf(menu, "%s\n", cb->info.str);
     cb = cb->next;
   }
 
