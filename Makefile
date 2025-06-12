@@ -1,11 +1,13 @@
 CFILE := xfce4-clipman-rofi.c
 EXEC := xfce4-clipman-rofi
-# CFLAGS := -g
 
 all: $(EXEC)
 
 $(EXEC): $(CFILE)
 	gcc $(CFLAGS) $(CFILE) -o $(EXEC)
+
+debug:
+	$(MAKE) CFLAGS="-g" all
 
 clean:
 	rm $(EXEC)

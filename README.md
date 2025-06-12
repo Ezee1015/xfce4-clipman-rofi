@@ -8,6 +8,11 @@ make
 make install
 ```
 
+Available commands:
+- `make debug`: To make an executable with debug information
+- `make clean`
+- `make uninstall`
+
 ## Usage
 ```bash
 ~/.local/share/rofi/xfce4-clipman-rofi
