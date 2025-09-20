@@ -5,7 +5,7 @@
 
 #define STR_BLOCK_SIZE 256
 #define TEMP_PATH "/tmp/xfce4-clipman-rofi.temp"
-#define MENU_CMD "rofi -dmenu"
+#define MENU_CMD "rofi -i -dmenu"
 #define CLIPBOARD_MANAGER_CMD "xclip -i -sel clip"
 
 typedef struct {
