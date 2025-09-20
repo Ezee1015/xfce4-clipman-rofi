@@ -151,6 +151,17 @@ bool load_clipboard(Clipboard **cb) {
         escaped = false;
         break;
 
+      case 'r':
+        // TODO Sometimes I encounter some \r inside the clipboard.
+        // Until I found what to do with them I'm going to skip them.
+        if (!append_str(*cb, (escaped) ? "" : "r")) {
+          fprintf(stderr, "Error while appending string or char\n");
+          fclose(f);
+          return false;
+        }
+        escaped = false;
+        break;
+
       default:
         if (escaped) {
           fprintf(stderr, "Error parsing the clipboard!. Unknown escape sequence: \\%c\n", c);
