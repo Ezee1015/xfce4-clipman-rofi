@@ -2,6 +2,8 @@
 
 Open the [xfce4-clipman](https://docs.xfce.org/panel-plugins/xfce4-clipman-plugin/start) clipboard history with [rofi](https://github.com/davatorium/rofi).
 
+> This project is not part of XFCE nor rofi.
+
 ## Installation
 ```bash
 make
