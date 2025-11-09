@@ -11,8 +11,10 @@ make install
 ```
 
 Available commands:
-- `make debug`: To make an executable with debug information
+- `make`
+- `make debug` (make an executable with debug information)
 - `make clean`
+- `make install`
 - `make uninstall`
 
 ## Usage
